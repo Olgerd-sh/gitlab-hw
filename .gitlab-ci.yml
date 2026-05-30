@@ -6,33 +6,19 @@ build:
   stage: build
   image: docker:latest
   services:
-    - docker:dind # Обязательно для сборки docker build
+    - docker:dind
+  variables:
+    # Отключаем обязательный TLS, чтобы избежать сетевых ошибок внутри GitLab Runner
+    DOCKER_TLS_CERTDIR: ""
   script:
     - docker build .
 
 test:
   stage: test
   image: golang:1.17
-  variables:
-    GIT_DEPTH: "0" # Отменяет shallow clone, чтобы git diff видел историю коммитов
-  before_script:
-    - apk add --no-cache git || apt-get update && apt-get install -y git # Гарантирует наличие git в контейнере
   script:
-    - |
-      if [[ "$CI_COMMIT_REF_NAME" == "main" ]] && [[ "$CI_PIPELINE_SOURCE" == "push" || "$CI_PIPELINE_SOURCE" == "web" ]]; then
-        # Проверяем изменения, исключая ошибку первого коммита репозитория
-        if git rev-parse HEAD~1 >/dev/null 2>&1; then
-          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD -- '*.go')
-        else
-          CHANGED_FILES=$(git ls-files -- '*.go')
-        fi
+    # Инициализируем модуль на лету, если его вдруг нет в репозитории (защита от падения go test)
+    - if [ ! -f go.mod ]; then go mod init myproject; fi
+    # Запускаем тесты для текущей папки
+    - go test ./...
 
-        if [[ ! -z "$CHANGED_FILES" ]]; then
-          echo "Go files changed. Running tests..."
-          go test .
-        else
-          echo "No Go files were changed. Skipping tests."
-        fi
-      else
-        echo "Skipping tests as it's not a main branch push or web pipeline event."
-      fi
