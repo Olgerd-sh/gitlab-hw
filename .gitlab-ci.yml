@@ -8,7 +8,9 @@ build:
   services:
     - docker:dind
   variables:
-    # Отключаем обязательный TLS, чтобы избежать сетевых ошибок внутри GitLab Runner
+    # Указываем точный адрес демона Docker
+    DOCKER_HOST: "tcp://docker:2375"
+    # Отключаем TLS, так как раннер подключается по обычному tcp-порту 2375
     DOCKER_TLS_CERTDIR: ""
   script:
     - docker build .
@@ -17,8 +19,5 @@ test:
   stage: test
   image: golang:1.17
   script:
-    # Инициализируем модуль на лету, если его вдруг нет в репозитории (защита от падения go test)
     - if [ ! -f go.mod ]; then go mod init myproject; fi
-    # Запускаем тесты для текущей папки
     - go test ./...
-
